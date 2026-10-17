@@ -1,0 +1,75 @@
+# ===== Dependencies =====
+node_modules/
+.pnpm-store/
+vendor/
+.bundle/
+
+# ===== Build output (static site generators) =====
+dist/
+build/
+out/
+public/build/
+_site/                # Jekyll / Eleventy
+.next/                # Next.js
+.astro/               # Astro
+.svelte-kit/          # SvelteKit
+.nuxt/                # Nuxt
+.output/
+resources/_gen/       # Hugo
+.hugo_build.lock
+.jekyll-cache/
+.jekyll-metadata
+.sass-cache/
+.cache/
+.parcel-cache/
+.turbo/
+
+# ===== Hosting / deploy tooling =====
+.vercel/
+.netlify/
+.wrangler/            # Cloudflare Workers/Pages
+.dev.vars             # Cloudflare local secrets
+
+# ===== Secrets & environment =====
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ===== Logs & debug =====
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ===== Drafts & scratch (blog-specific) =====
+drafts-private/
+*.draft.md
+scratch/
+
+# ===== Testing / coverage =====
+coverage/
+.nyc_output/
+
+# ===== OS files =====
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# ===== Editors =====
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== Obsidian (if writing posts in a vault) =====
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/cache
+.trash/
