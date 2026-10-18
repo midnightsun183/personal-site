@@ -40,25 +40,26 @@ Decisions:
 
 ## Home map (docs/design/home-map.md)
 
-Decided October 18, 2026: the work sells itself (no pitch copy; the Telos panel links out); the letter is dropped; planned nodes stay hidden; nodes drift very slowly. Later the same day: the map shows with any number of real nodes (no 8-node minimum, no padding with placeholders).
+Decided October 18, 2026: the work sells itself (no pitch copy; the Telos panel links out); the letter is dropped; planned nodes stay hidden; the map shows with any number of real nodes; nodes drift very slowly. Revised the same day: themes are nodes, Obsidian-style, instead of fixed regions (see the doc's "Revision" section).
 
 Done:
-- [x] Map data in `src/content/map.ts` (20 nodes, 24 edges from the doc), validated by `mapData()` in `src/lib/catalog.ts`. The build fails on a broken edge, a duplicate id, an unknown `entryId`, or an isolated published node (all four checked).
-- [x] `HomeMap.tsx`: the list version (server render, phones, no JS) and the field (d3-force, hover and focus dimming, drag with neighbors following, background pan, click to open, walking panel to panel, Esc, click outside, Tab into the panel, reduced motion settles and holds still)
+- [x] Map data in `src/content/map.ts`: 20 pieces, each with its themes, plus 9 direct links that cross themes. `mapData()` in `src/lib/catalog.ts` adds a node for each theme in use and the threads to it. The build fails on a broken link, a duplicate id, an unknown `entryId`, a published piece with no themes, or a hub with no links (all checked).
+- [x] `HomeMap.tsx`: the list version (server render, phones, no JS), grouped by theme, and the field (d3-force, hover and focus dimming, drag with neighbors following, background pan, click to open, walking panel to panel, Esc, click outside, Tab into the panel, reduced motion holds still)
 - [x] Home page: one line, the map, latest writing. The letter and its live clocks are gone (`LiveTime` deleted).
 - [x] Newest five feed essays attach to the Writing hub automatically.
-- [x] Checked in a browser: both themes, 360px (list, no horizontal scroll), the switch at 720px, all interactions above. Preview builds (`NEXT_PUBLIC_MAP_PREVIEW=1`) show all 20 nodes for judging the layout; never set it on Cloudflare.
+- [x] Checked in a browser: both themes, 360px (list, no horizontal scroll), the switch at 720px, the interactions above; no label overlaps with 9 nodes (today) or 28 (preview). Preview builds (`NEXT_PUBLIC_MAP_PREVIEW=1`) show all pieces; never set it on Cloudflare.
 
 Deviations from the doc, and why:
+- Themes replace regions (Corey's call; see the doc's revision).
+- The map is laid out before the first paint instead of settling visibly over 1.2 s; a visible settle left 28 nodes tangled.
 - Dimmed nodes turn `--pencil` instead of fading to 25%, so their text keeps AA contrast. Threads still fade.
-- Repulsion is -220 (doc: about -350) and the region pull 0.12 (doc: about 0.06). With 20 labels the doc's values pushed nodes off the field and blurred regions.
-- Nodes are kept inside the field, and region names act as fixed obstacles so clusters form around them instead of over them. Regions with no published nodes don't show their name.
-- The pen loop marks the open node only when its label is 28 characters or shorter; longer labels get the highlighter alone.
+- Forces were retuned for themes and long labels: rectangle collision (not circles), repulsion -320 with a 520px reach, a light pull to the middle, links of 110px (to a theme) and 170px (between pieces). The field's height grows with the number of nodes (480 to 760px).
+- The pen loop marks the open node only when its label is 28 characters or shorter.
 
 Waiting on Corey:
 - [ ] The line above the map (placeholder in `src/app/page.tsx`)
-- [ ] Rewrite every node summary in `map.ts` (all placeholders), plus Telos Brothers', Second Lengua's and Experts' descriptions and Second Lengua's URL
-- [ ] Pick which planned pieces to write first. Today the map has 5 nodes (Telos Brothers, Experts, Second Lengua, Same latitude, Writing), plus feed essays once the feeds are configured. Telos Brothers and Second Lengua have no visible threads until one of their planned neighbors is published.
+- [ ] Check the theme names and which themes each piece touches in `map.ts` (a first pass from the doc's regions and connection notes), and rewrite every summary (all placeholders), plus Second Lengua's URL
+- [ ] Pick which planned pieces to write first. Today the map has 5 pieces in 4 small webs, plus feed essays once the feeds are configured.
 - [ ] Look at a preview build and say whether the drift and the pen loop on the open node stay or go (`DRIFT` in `HomeMap.tsx`; the loop is in `FieldNode`)
 
 Not done (nice-to-have in the doc):

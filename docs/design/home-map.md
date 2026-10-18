@@ -26,6 +26,18 @@ Answers: 1, the work sells itself, no pitch copy. 2, drop the letter. 3, planned
 3. **Planned nodes.** Most nodes below point to pieces that aren't written yet. Proposal: they stay in the data with `status: "planned"` and don't render until they have somewhere to go. The map launches with whatever is real (at least 8 nodes, or it looks empty). Confirm.
 4. **Ambient motion.** Should nodes drift slightly when nobody is touching them, or sit still until hovered or dragged? This doc specifies a very slow drift, easy to turn off with one constant.
 
+## Revision: themes instead of regions (October 18, 2026)
+
+Corey asked for the map to work like an Obsidian graph: "everything is connected. Concepts that are unique are their own web." That replaces the regions below:
+
+- **Themes are nodes.** Each piece lists its themes in `map.ts` (`themes: [...]`), and the build adds a node for every theme a published piece uses, with a thread to each of those pieces. A theme with one piece is its own small web.
+- **No fixed regions, anchors or background region names.** The layout comes from the links, with a gentle pull toward the middle so separate webs stay in view.
+- **Direct links between pieces are only for connections that cross themes.** Pieces that share a theme are already joined through it.
+- **The list version is grouped by theme.** Each piece is listed in full under its first theme, and other themes name it in an "Also here" line.
+- **The layout is computed before the first paint** (300 ticks), so the map appears settled; the load moment is the threads drawing in. Labels use rectangle collision instead of d3's circles, so they don't overlap.
+
+Sections below that describe regions, anchors and the region list are superseded by this one.
+
 ## What the map is not
 
 - Not a skills cloud. Platforms (Snowflake, ServiceNow, Python…) are never nodes. They can appear inside a node's panel as "built with" if Corey wants, nowhere else.

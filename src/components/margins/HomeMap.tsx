@@ -24,7 +24,6 @@ import {
   type Ref,
 } from "react";
 import {
-  forceCollide,
   forceLink,
   forceManyBody,
   forceSimulation,
@@ -47,17 +46,18 @@ const DRIFT_ALPHA = 0.02;
 const DRIFT_PUSH = 0.025;
 /** Movement before a press counts as a drag rather than a click. */
 const DRAG_THRESHOLD = 4;
-/** About 1.2 s of ticks at 60 fps to settle on load. */
-const SETTLE_TICKS = 72;
-/** Repulsion between nodes. The doc suggests about -350; with ~20 labels that pushes the outer ones off the field. */
-const CHARGE = -220;
+/** Ticks run before the first paint, so the map appears already settled (a web of ~30 nodes needs a few hundred). */
+const PRESETTLE_TICKS = 300;
+/** Repulsion between nodes, and how far it reaches, so separate webs don't shove each other off the field. */
+const CHARGE = -320;
+const CHARGE_REACH = 520;
 /** Space kept between a node and the field's edge. */
 const EDGE = 12;
 /** Pull toward the middle of the field, so separate webs stay in view. */
-const CENTER_PULL = 0.05;
+const CENTER_PULL = 0.025;
 /** Link lengths: a piece sits close to its theme; direct links between pieces run longer. */
-const THEME_LINK = 95;
-const PIECE_LINK = 150;
+const THEME_LINK = 110;
+const PIECE_LINK = 170;
 /** d3-force's default friction, named so the edge clamp can predict the next position. */
 const VELOCITY_DECAY = 0.4;
 
@@ -70,9 +70,40 @@ function hash(s: string): number {
   return (h >>> 0) / 4294967295;
 }
 
-/** Circles stand in for label boxes. */
-function collideRadius(d: SimNode): number {
-  return Math.max(d.w, d.h) / 2 + 10;
+/** Space kept between two labels. */
+const LABEL_GAP = 8;
+
+/**
+ * Keeps label boxes from overlapping. d3's forceCollide uses circles, which fit wide, short labels badly; this
+ * compares the actual rectangles (where each node is about to be) and pushes overlapping pairs apart along the
+ * shallower axis. About 30 nodes means a few hundred pairs per tick, which is cheap.
+ */
+function rectCollide(nodes: SimNode[], strength = 0.7) {
+  return () => {
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i];
+        const b = nodes[j];
+        const dx = (b.x ?? 0) + (b.vx ?? 0) - ((a.x ?? 0) + (a.vx ?? 0));
+        const dy = (b.y ?? 0) + (b.vy ?? 0) - ((a.y ?? 0) + (a.vy ?? 0));
+        const ox = (a.w + b.w) / 2 + LABEL_GAP - Math.abs(dx);
+        const oy = (a.h + b.h) / 2 + LABEL_GAP - Math.abs(dy);
+        if (ox <= 0 || oy <= 0) continue;
+        // A pinned node (being dragged) stays put; the other one takes the whole push.
+        const shareA = a.fx != null ? 0 : b.fx != null ? 1 : 0.5;
+        const shareB = 1 - shareA;
+        if (ox < oy) {
+          const push = ox * strength * (dx < 0 ? -1 : 1);
+          a.vx = (a.vx ?? 0) - push * shareA;
+          b.vx = (b.vx ?? 0) + push * shareB;
+        } else {
+          const push = oy * strength * (dy < 0 ? -1 : 1);
+          a.vy = (a.vy ?? 0) - push * shareA;
+          b.vy = (b.vy ?? 0) + push * shareB;
+        }
+      }
+    }
+  };
 }
 
 function neighborsOf(edges: MapView["edges"]): Map<string, string[]> {
@@ -116,6 +147,7 @@ export default function HomeMap({ view }: { view: MapView }) {
 function MapList({ view }: { view: MapView }) {
   const neighbors = useMemo(() => neighborsOf(view.edges), [view.edges]);
   const labelOf = useMemo(() => new Map(view.nodes.map((n) => [n.id, n.label])), [view.nodes]);
+  const byId = useMemo(() => new Map(view.nodes.map((n) => [n.id, n])), [view.nodes]);
   const themes = view.nodes.filter((n) => n.kind === "theme");
   const ungrouped = view.nodes.filter((n) => !n.group);
 
@@ -155,6 +187,21 @@ function MapList({ view }: { view: MapView }) {
             {theme.label}
           </h2>
           {view.nodes.filter((n) => n.group === theme.group && n.kind !== "theme").map((n) => item(n, theme.id))}
+          {(() => {
+            // Pieces listed in full under another theme: name them here and link to that entry.
+            const elsewhere = (neighbors.get(theme.id) ?? []).filter((id) => byId.get(id)?.group !== theme.group);
+            return elsewhere.length > 0 ? (
+              <p className={m.connects}>
+                {theme.group && view.nodes.some((n) => n.group === theme.group && n.kind !== "theme") ? "Also here: " : "Here: "}
+                {elsewhere.map((id, i) => (
+                  <span key={id}>
+                    <a href={`#map-${id}`}>{labelOf.get(id)}</a>
+                    {i < elsewhere.length - 1 ? ", " : "."}
+                  </span>
+                ))}
+              </p>
+            ) : null;
+          })()}
         </section>
       ))}
       {ungrouped.length > 0 && <section className={m.listTheme}>{ungrouped.map((n) => item(n))}</section>}
@@ -313,24 +360,22 @@ function MapField({ view }: { view: MapView }) {
           .id((d) => d.id)
           .distance((l) => ((l.source as SimNode).theme || (l.target as SimNode).theme ? THEME_LINK : PIECE_LINK)),
       )
-      .force("charge", forceManyBody().strength(CHARGE))
-      .force("collide", forceCollide<SimNode>(collideRadius).iterations(2))
+      .force("charge", forceManyBody().strength(CHARGE).distanceMax(CHARGE_REACH))
+      .force("collide", rectCollide(nodes))
       .force("x", forceX<SimNode>(size.w / 2).strength(CENTER_PULL))
-      .force("y", forceY<SimNode>(size.h / 2).strength(CENTER_PULL * 1.6))
+      // Pulled harder vertically than across, since the field is much wider than it is tall.
+      .force("y", forceY<SimNode>(size.h / 2).strength(CENTER_PULL * 2.5))
       .force("drift", drift)
       .force("contain", contain)
       .velocityDecay(VELOCITY_DECAY)
-      .alphaDecay(1 - Math.pow(0.001, 1 / SETTLE_TICKS))
-      .on("tick", paint);
+      .stop();
     sim.current = s;
 
-    if (reduced.current) {
-      s.stop();
-      s.tick(300);
-      paint();
-    } else {
-      updateDrift();
-    }
+    // Lay the map out before anyone sees it; the load moment is the threads drawing in (CSS), then the drift.
+    s.tick(PRESETTLE_TICKS);
+    paint();
+    s.on("tick", paint);
+    if (!reduced.current) updateDrift();
 
     // Labels were measured before Literata loaded; measure again once it has, so nothing overflows its box.
     let cancelled = false;
@@ -340,7 +385,6 @@ function MapField({ view }: { view: MapView }) {
         const el = nodeEls.current.get(n.id);
         if (el) [n.w, n.h] = [el.offsetWidth, el.offsetHeight];
       }
-      (s.force("collide") as ReturnType<typeof forceCollide<SimNode>>).radius(collideRadius);
       if (reduced.current) {
         s.tick(120);
         paint();
