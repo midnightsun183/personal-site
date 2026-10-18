@@ -1,0 +1,92 @@
+/* src/app/globals.css */
+@import "tailwindcss";
+
+/*
+  Margins palette. Light by default, dark when the system asks for it,
+  and either one when the reader picks it with the theme button (data-theme on <html>).
+*/
+:root {
+  --paper: #F5F6F3;
+  --ink: #1C2433;
+  --pencil: #5C6371;
+  --pen: #2A56A6;
+  --hi: rgba(247, 222, 98, .55);
+  --rule: #D8DBD4;
+  --wash: #E9ECE6;
+  --error: #B3261E;
+  --gap: clamp(1.25rem, 3vw, 3.5rem);
+  --z-map-node: 1;
+  --z-map-panel: 2;
+  --z-skip: 10;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #12161F;
+    --ink: #E4E7EE;
+    --pencil: #9CA3B0;
+    --pen: #94B4F2;
+    --hi: rgba(214, 190, 70, .28);
+    --rule: #2A303C;
+    --wash: #1A2030;
+    --error: #F2A39C;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper: #12161F;
+  --ink: #E4E7EE;
+  --pencil: #9CA3B0;
+  --pen: #94B4F2;
+  --hi: rgba(214, 190, 70, .28);
+  --rule: #2A303C;
+  --wash: #1A2030;
+  --error: #F2A39C;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-pencil: var(--pencil);
+  --color-pen: var(--pen);
+  --color-rule: var(--rule);
+  --color-wash: var(--wash);
+  --font-serif: var(--font-literata), Georgia, serif;
+}
+
+/* Fluid root size: rem grows with the window so wide screens get a proportionally bigger page. */
+html {
+  font-size: clamp(16px, calc(10.5px + 0.42vw), 21px);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-literata), Georgia, serif;
+  font-optical-sizing: auto;
+  font-size: 1.1875rem;
+  line-height: 1.68;
+}
+
+a { color: var(--pen); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .18em; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--pen); outline-offset: 3px; border-radius: 2px; }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
+/* The theme button names the theme it switches to. CSS picks the label, so it's right before hydration. */
+.to-light { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .to-dark { display: none; }
+  :root:not([data-theme="light"]) .to-light { display: inline; }
+}
+:root[data-theme="dark"] .to-dark { display: none; }
+:root[data-theme="dark"] .to-light { display: inline; }

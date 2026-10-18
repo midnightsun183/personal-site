@@ -1,0 +1,34 @@
+{
+  "name": "personal-site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "prebuild": "node scripts/sync/check.ts",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "sync": "node scripts/sync/main.ts",
+    "check:feeds": "node scripts/sync/check.ts"
+  },
+  "dependencies": {
+    "d3-force": "3.0.0",
+    "fast-xml-parser": "5.11.2",
+    "next": "16.4.2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/turbopack": "^4",
+    "@types/d3-force": "3.0.10",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.2",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
