@@ -1,36 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# coreymacdonald.com
 
-## Getting Started
+Corey MacDonald's personal site. Next.js 16, built as a static export and served from Cloudflare's free plan.
+How it's built and why: `CLAUDE.md` and `TODO.md`.
 
-First, run the development server:
+## Writing for the site
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+All content lives in `notes/`, one Markdown file per piece and one per theme. There's no code to edit to add a piece,
+theme, fact or link. The format is in `docs/design/obsidian-content-pipeline-spec.md` (the decisions at the top win),
+and `notes/_templates/` has a template for each kind of note with every property explained.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **A page here:** a note with a body and no `url`. Set `slug` before publishing; it's the URL and shouldn't change.
+- **A link out** (Substack, Medium, GitHub): a note with a `url` and no body.
+- **A map-only piece:** neither. Planned pieces live in `notes/map/` with `status: planned`.
+- **A theme:** a note in `notes/themes/` whose body lists "Did you know?" facts, each ending in its source link.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+`status: draft` keeps a note off the live site, but `npm run dev` shows it, marked, so you can check it first. Edits
+show in `npm run dev` on refresh. If a note breaks a rule, the build fails with a message naming the file, and the live
+site stays as it was.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Getting notes to GitHub
 
-## Learn More
+`notes/` is inside the repo, so notes go up with the commits you already make. No Obsidian plugin is needed.
 
-To learn more about Next.js, take a look at the following resources:
+1. **Open `notes/` as its own vault** in Obsidian. Edit, then commit and push as usual (GitHub Desktop, VS Code, or the
+   terminal). Cloudflare rebuilds on push.
+2. **Or show it inside your main vault** with a Windows directory junction. Obsidian follows junctions. Don't nest the
+   main vault inside the repo, or the repo inside the main vault.
+   ```
+   mklink /J "<main vault>\Site" "C:\Users\PC\Documents\Projects\personal-site\notes"
+   ```
+3. **Away from this PC:** press `.` on the repo at github.com to open github.dev, which edits Markdown and commits from
+   a browser.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Commands
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Run from Windows (PowerShell): `node_modules` is installed there, and the build needs its native binaries.
 
-## Deploy on Vercel
+- `npm run dev`: local site at http://localhost:3000
+- `npm test`: the notes tests (Vitest)
+- `npm run build`: tests, then the static export into `out/`
+- `npm run lint`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Cloudflare: build command `npm run build`, output `out`, Node 24. Don't set `NODE_ENV=production` there, or the tests
+can't install and every build fails.

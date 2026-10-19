@@ -9,6 +9,8 @@
 .listTheme + .listTheme { margin-top: 2.75rem; }
 .listThemeTitle { margin: 0 0 1rem; font-size: 1.125rem; font-weight: 500; color: var(--pen); }
 .listItem { margin: 0 0 1.75rem; scroll-margin-top: 2rem; }
+.listFact { margin: -.5rem 0 1.25rem; font-size: .9375rem; color: var(--pencil); }
+.listFact .factSource { margin: 0; }
 .listItem:target .listTitle { background: linear-gradient(transparent 52%, var(--hi) 52%, var(--hi) 92%, transparent 92%); }
 .listTitle { display: inline; margin: 0; font-size: 1.3125rem; font-weight: 500; line-height: 1.3; }
 .listTitle a { color: var(--ink); text-decoration-color: var(--pen); }
@@ -52,6 +54,11 @@
   transition: color .3s cubic-bezier(.23, 1, .32, 1);
 }
 .nodeLabel { padding: 0 .1em; }
+/* The pen loop on a hovered, focused or open node. Drawn over the label's paper so it reads as ink on top. */
+.loop {
+  position: absolute; left: -9%; top: -20%; width: 118%; height: 140%; overflow: visible; pointer-events: none;
+}
+.loop path { fill: none; stroke: var(--pen); stroke-width: 1.6; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .heavy .nodeLabel { font-size: 1.3125rem; font-weight: 500; }
 .normal .nodeLabel { font-size: 1rem; }
 .light .nodeLabel { font-size: .875rem; color: var(--pencil); }
@@ -89,6 +96,10 @@
 }
 .walk:hover { text-decoration-thickness: 2px; }
 .panelLink { margin: .85rem 0 0; }
+.fact { margin-top: .5rem; }
+.factLead { margin: 0; font-style: italic; color: var(--pen); }
+.factSource { margin: .5rem 0 0; font-size: .875rem; color: var(--pencil); }
+a.node { text-decoration: none; }
 .muted { color: var(--pencil); font-style: italic; }
 
 @media (prefers-reduced-motion: reduce) {

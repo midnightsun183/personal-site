@@ -36,7 +36,27 @@ Corey asked for the map to work like an Obsidian graph: "everything is connected
 - **The list version is grouped by theme.** Each piece is listed in full under its first theme, and other themes name it in an "Also here" line.
 - **The layout is computed before the first paint** (300 ticks), so the map appears settled; the load moment is the threads drawing in. Labels use rectangle collision instead of d3's circles, so they don't overlap.
 
-Sections below that describe regions, anchors and the region list are superseded by this one.
+**Interaction, revised the same day (Corey):**
+
+- **Hover or focus a piece:** the pen loop is drawn around the whole node, and its card shows. The card stays while the pointer or focus is on it, and closes about 200 ms after both leave.
+- **Click a piece:** go straight to it. Pieces with a link are real `<a>` elements, so Cmd, Ctrl or middle click opens a new tab and Enter follows the link. A piece with nowhere to go yet (Experts) pins its card instead.
+- **Touch:** the first tap shows the card, the second follows the link.
+- **Hover a theme:** its web lights up, with no card. **Click a theme:** a card with a "Did you know?" fact from Wikipedia, with a link to the article. Each further click, or "Another fact", shows the next. Facts are hand-curated and cited in `map.ts` (`themeFacts`), checked against the articles; nothing is fetched at runtime. The list version shows each theme's first fact under its heading.
+- **Esc, Close, or clicking the background** closes any card. Focus goes back to the node without reopening it.
+
+Sections below that describe regions, anchors and the region list are superseded by this one, and so is the original "Click a node" behavior.
+
+## Revision: the map's data comes from notes (October 18, 2026)
+
+`map.ts` and the feed sync are gone (`docs/design/obsidian-content-pipeline-spec.md`, PR1). Every node is a note in `notes/`:
+
+- **Pieces** are notes outside `notes/themes/`. `themes: ["[[Places]]"]` replaces the `themes` array, `connects: ["[[X]]"]` replaces `mapEdges` (one side is enough), and the note's body or `url` replaces `entryId` and `href`: a note is its entry and its node at once.
+- **Themes** are notes in `notes/themes/`. Their bodies list the "Did you know?" facts, each ending in its source link (replaces `themeFacts`). `order` sets the list order; `label` the display name.
+- **No feed nodes.** Substack and Medium posts are notes with a `url`; the newest-five feed attachment is removed.
+- **Order within a theme** is heavy before normal, then alphabetical by label (it used to be the order in `map.ts`).
+- `next dev` shows planned and draft notes too. Preview builds show planned notes, as before.
+
+The field, its interactions, and the list version are unchanged. The graph-view rebuild is PR2 (see `TODO.md`). The "Data" section below is superseded by this one.
 
 ## What the map is not
 
@@ -96,6 +116,8 @@ Only one panel at a time.
 No draggable field. Render the same data as a list grouped by region: each node's title, kind, summary, link, and a "Connects to" line listing its neighbors as in-page links. This list is also the server-rendered HTML (the static export ships it), so the content is crawlable and works before hydration. On desktop, the interactive map replaces it after hydration.
 
 ## Data
+
+Superseded: the data now lives in notes (see "Revision: the map's data comes from notes" above). Kept for the history of the inventory.
 
 ### Where nodes live
 Add `src/content/map.ts`, hand-written, read only through `src/lib/catalog.ts` like everything else.

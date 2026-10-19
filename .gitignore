@@ -42,3 +42,6 @@ next-env.d.ts
 
 # design mockups (local only)
 /public/lab/
+
+# Obsidian settings for the notes vault (per machine)
+notes/.obsidian/

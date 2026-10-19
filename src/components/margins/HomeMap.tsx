@@ -9,6 +9,10 @@
 // Pieces that share a theme form one web; a theme on its own is its own small web. A gentle pull toward the
 // middle keeps separate webs from drifting apart.
 //
+// Interaction: hovering (or focusing) a piece draws the pen loop around it and shows its card; clicking it goes
+// to the piece. Clicking a theme pins a card with a "Did you know?" fact from Wikipedia; each click shows the next.
+// On touch, the first tap shows the card and the second follows the link.
+//
 // MapField keeps positions out of React: d3-force ticks write `transform` and line endpoints straight to the DOM.
 // React state holds only hover, focus, the open panel, and the container size.
 
@@ -33,8 +37,9 @@ import {
   type SimulationLinkDatum,
   type SimulationNodeDatum,
 } from "d3-force";
+import { useRouter } from "next/navigation";
 import { EntryLink } from "./EntryList";
-import { Scribble } from "./Marks";
+import { PEN_LOOP } from "./Marks";
 import type { MapView, MapViewNode } from "@/lib/catalog";
 import m from "./map.module.css";
 import s from "./margins.module.css";
@@ -44,6 +49,8 @@ const WIDE = "(min-width: 720px)";
 const DRIFT = true;
 const DRIFT_ALPHA = 0.02;
 const DRIFT_PUSH = 0.025;
+/** How long a preview card lingers after the pointer or focus leaves, so it can be reached. */
+const PREVIEW_LINGER_MS = 200;
 /** Movement before a press counts as a drag rather than a click. */
 const DRAG_THRESHOLD = 4;
 /** Ticks run before the first paint, so the map appears already settled (a web of ~30 nodes needs a few hundred). */
@@ -186,6 +193,14 @@ function MapList({ view }: { view: MapView }) {
           <h2 className={m.listThemeTitle} id={`map-${theme.id}-h`}>
             {theme.label}
           </h2>
+          {theme.facts?.[0] && (
+            <p className={m.listFact}>
+              <span className={m.factLead}>Did you know?</span> {theme.facts[0].text}{" "}
+              <span className={m.factSource}>
+                (<a href={theme.facts[0].url}>Wikipedia</a>)
+              </span>
+            </p>
+          )}
           {view.nodes.filter((n) => n.group === theme.group && n.kind !== "theme").map((n) => item(n, theme.id))}
           {(() => {
             // Pieces listed in full under another theme: name them here and link to that entry.
@@ -216,7 +231,7 @@ function MapField({ view }: { view: MapView }) {
   const fieldRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const nodeEls = useRef(new Map<string, HTMLButtonElement>());
+  const nodeEls = useRef(new Map<string, HTMLElement>());
   const lineEls = useRef<(SVGLineElement | null)[]>([]);
   const sim = useRef<Simulation<SimNode, SimLink> | null>(null);
   const simNodes = useRef(new Map<string, SimNode>());
@@ -224,17 +239,28 @@ function MapField({ view }: { view: MapView }) {
   const sizeRef = useRef({ w: 0, h: 0 });
   const drag = useRef<Drag | null>(null);
   const reduced = useRef(false);
-  const openRef = useRef<string | null>(null);
+  /** The node whose card is showing, for placePanel and the drift, which run outside React. */
+  const cardRef = useRef<string | null>(null);
+  const lingerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Set while we move focus back to a node after closing its card, so that focus doesn't reopen it. */
+  const quietFocus = useRef(false);
+  const router = useRouter();
 
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [hover, setHover] = useState<string | null>(null);
   const [focus, setFocus] = useState<string | null>(null);
-  const [open, setOpen] = useState<string | null>(null);
+  /** A card shown because a piece is hovered or focused. Closes shortly after both leave the node and the card. */
+  const [preview, setPreview] = useState<string | null>(null);
+  /** A card that stays until closed: a theme's fact card, or a piece with nowhere to link to. */
+  const [pinned, setPinned] = useState<string | null>(null);
+  /** Which fact each theme is showing. */
+  const [factIndex, setFactIndex] = useState<Record<string, number>>({});
   const [dragging, setDragging] = useState<string | null>(null);
 
   const neighbors = useMemo(() => neighborsOf(view.edges), [view.edges]);
   const byId = useMemo(() => new Map(view.nodes.map((n) => [n.id, n])), [view.nodes]);
-  const active = hover ?? focus ?? open;
+  const card = preview ?? pinned;
+  const active = hover ?? focus ?? card;
   const lit = useMemo(() => (active ? new Set([active, ...(neighbors.get(active) ?? [])]) : null), [active, neighbors]);
 
   /** Write every position to the DOM. Called on each simulation tick and after pans. */
@@ -260,7 +286,7 @@ function MapField({ view }: { view: MapView }) {
   /** Put the open panel beside its node, flipping to the other side or up near the edges. */
   function placePanel() {
     const panel = panelRef.current;
-    const id = openRef.current;
+    const id = cardRef.current;
     const field = fieldRef.current;
     if (!panel || !id || !field) return;
     const n = simNodes.current.get(id);
@@ -282,7 +308,7 @@ function MapField({ view }: { view: MapView }) {
   const updateDrift = useCallback(() => {
     const s = sim.current;
     if (!s || drag.current) return;
-    const on = DRIFT && !reduced.current && !document.hidden && !openRef.current;
+    const on = DRIFT && !reduced.current && !document.hidden && !cardRef.current;
     s.alphaTarget(on ? DRIFT_ALPHA : 0);
     if (on) s.restart();
   }, []);
@@ -327,7 +353,7 @@ function MapField({ view }: { view: MapView }) {
     const links: SimLink[] = view.edges.map(([source, target]) => ({ source, target }));
 
     const drift = () => {
-      if (!DRIFT || reduced.current || openRef.current || drag.current) return;
+      if (!DRIFT || reduced.current || cardRef.current || drag.current) return;
       const t = performance.now() / 1000;
       for (const n of nodes) {
         n.vx = (n.vx ?? 0) + Math.sin(t * 0.3 + n.phase) * DRIFT_PUSH;
@@ -419,21 +445,90 @@ function MapField({ view }: { view: MapView }) {
     };
   }, [updateDrift]);
 
-  // Keep the panel's ref in sync, pause drift while it's open, and close it on Esc.
+  // Keep the card's ref in sync, pause drift while a card shows, and close it on Esc.
   useEffect(() => {
-    openRef.current = open;
+    cardRef.current = card;
     updateDrift();
     requestAnimationFrame(placePanel);
-    if (!open) return;
+    if (!card) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      const id = openRef.current;
-      setOpen(null);
-      if (id) nodeEls.current.get(id)?.focus();
+      const id = cardRef.current;
+      closeCards();
+      if (id) refocus(id);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, updateDrift]);
+    // closeCards only sets state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card, updateDrift]);
+
+  useEffect(() => () => clearLinger(), []);
+
+  function clearLinger() {
+    if (lingerTimer.current) clearTimeout(lingerTimer.current);
+    lingerTimer.current = null;
+  }
+
+  /** Show a piece's card now (themes show theirs on click only). */
+  function showPreview(id: string) {
+    clearLinger();
+    if (byId.get(id)?.kind !== "theme") setPreview(id);
+  }
+
+  /** Let the preview linger briefly, so the pointer or focus can move onto the card. */
+  function hidePreviewSoon() {
+    clearLinger();
+    lingerTimer.current = setTimeout(() => setPreview(null), PREVIEW_LINGER_MS);
+  }
+
+  function closeCards() {
+    clearLinger();
+    setPreview(null);
+    setPinned(null);
+  }
+
+  /** Return focus to a node after closing its card, without the focus reopening it. */
+  function refocus(id: string) {
+    quietFocus.current = true;
+    nodeEls.current.get(id)?.focus();
+    quietFocus.current = false;
+  }
+
+  /** Go to a piece: the same tab, or a new one with Cmd, Ctrl or the middle button. */
+  function follow(href: string, newTab: boolean) {
+    if (newTab) window.open(href, "_blank", "noopener");
+    else if (href.startsWith("/")) router.push(href);
+    else window.location.assign(href);
+  }
+
+  /**
+   * A click (or tap, or Enter on a button) on a node. Pieces with a link go there; on touch, the first tap only
+   * shows the card. Themes pin their fact card, and each further click shows the next fact. Anything else pins its
+   * card, or unpins it if it's already pinned.
+   */
+  function activate(id: string, opts: { touch?: boolean; newTab?: boolean } = {}) {
+    const n = byId.get(id);
+    if (!n) return;
+    if (n.kind === "theme") {
+      if (pinned === id) setFactIndex((f) => ({ ...f, [id]: ((f[id] ?? 0) + 1) % (n.facts?.length || 1) }));
+      clearLinger();
+      setPreview(null);
+      setPinned(id);
+      return;
+    }
+    if (n.href && !n.planned) {
+      if (opts.touch && card !== id) {
+        showPreview(id);
+        return;
+      }
+      follow(n.href, !!opts.newTab);
+      return;
+    }
+    clearLinger();
+    setPreview(null);
+    setPinned((cur) => (cur === id ? null : id));
+  }
 
   function toWorld(e: PointerEvent | ReactPointerEvent) {
     const rect = fieldRef.current!.getBoundingClientRect();
@@ -444,7 +539,7 @@ function MapField({ view }: { view: MapView }) {
     if (e.button !== 0) return;
     const target = e.target as HTMLElement;
     if (target.closest(`.${m.panel}`)) return;
-    const nodeEl = target.closest<HTMLButtonElement>("[data-node]");
+    const nodeEl = target.closest<HTMLElement>("[data-node]");
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
     } catch {
@@ -519,16 +614,12 @@ function MapField({ view }: { view: MapView }) {
       return;
     }
     // A press that didn't move is a click. The field holds pointer capture, so the browser sends the click event
-    // to the field, not the button; handle it here instead.
-    if (d.kind === "node" && d.id) toggle(d.id);
-    else setOpen(null); // the background closes the panel
+    // to the field, not the node; handle it here instead.
+    if (d.kind === "node" && d.id) activate(d.id, { touch: e.pointerType === "touch", newTab: e.metaKey || e.ctrlKey || e.button === 1 });
+    else closeCards(); // the background closes any card
   }
 
-  function toggle(id: string) {
-    setOpen((cur) => (cur === id ? null : id));
-  }
-
-  /** From a panel's "Connects to": open the neighbor, focus it, and pan it into view. */
+  /** From a card's "Connects to": show the neighbor's card, focus it, and pan it into view. */
   function walkTo(id: string) {
     const n = simNodes.current.get(id);
     const field = fieldRef.current;
@@ -541,11 +632,13 @@ function MapField({ view }: { view: MapView }) {
         paint();
       }
     }
-    setOpen(id);
+    clearLinger();
+    setPreview(null);
+    setPinned(id);
     nodeEls.current.get(id)?.focus();
   }
 
-  const openNode = open ? byId.get(open) : undefined;
+  const cardNode = card ? byId.get(card) : undefined;
 
   return (
     <div
@@ -554,7 +647,8 @@ function MapField({ view }: { view: MapView }) {
       // A small web doesn't need the full height; it grows with the map, up to the cap in map.module.css.
       style={{ ["--map-h" as string]: `${Math.min(760, Math.max(480, 240 + view.nodes.length * 36))}px` }}
       role="group"
-      aria-label="Map of my work. Each item connects to related work. Open one to see what it connects to."
+      aria-label="Map of my work. Each piece connects to its themes and to related work. Open a theme for a fact about it."
+      onDragStart={(e) => e.preventDefault()}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -580,34 +674,53 @@ function MapField({ view }: { view: MapView }) {
         </svg>
 
         {view.nodes.map((n) => {
-          const isOpen = open === n.id;
           const dim = lit && !lit.has(n.id);
           return (
             <FieldNode
               key={n.id}
               node={n}
-              isOpen={isOpen}
+              hasCard={card === n.id}
+              isPinned={pinned === n.id}
+              marked={hover === n.id || focus === n.id || card === n.id}
               isActive={active === n.id}
               dim={!!dim}
               setRef={(el) => {
                 if (el) nodeEls.current.set(n.id, el);
                 else nodeEls.current.delete(n.id);
               }}
-              onKeyboardClick={() => toggle(n.id)}
-              onEnter={() => setHover(n.id)}
-              onLeave={() => setHover((h) => (h === n.id ? null : h))}
-              onFocus={() => setFocus(n.id)}
-              onBlur={() => setFocus((f) => (f === n.id ? null : f))}
+              onKeyboardClick={() => activate(n.id)}
+              onEnter={() => {
+                setHover(n.id);
+                showPreview(n.id);
+              }}
+              onLeave={() => {
+                setHover((h) => (h === n.id ? null : h));
+                hidePreviewSoon();
+              }}
+              onFocus={() => {
+                setFocus(n.id);
+                if (!quietFocus.current) showPreview(n.id);
+              }}
+              onBlur={() => {
+                setFocus((f) => (f === n.id ? null : f));
+                hidePreviewSoon();
+              }}
               panel={
-                isOpen && openNode ? (
+                card === n.id && cardNode ? (
                   <Panel
                     ref={panelRef}
-                    node={openNode}
-                    neighbors={(neighbors.get(openNode.id) ?? []).map((id) => byId.get(id)!).filter(Boolean)}
+                    node={cardNode}
+                    factIndex={factIndex[cardNode.id] ?? 0}
+                    onNextFact={() => activate(cardNode.id)}
+                    neighbors={(neighbors.get(cardNode.id) ?? []).map((id) => byId.get(id)!).filter(Boolean)}
                     onWalk={walkTo}
+                    onStay={clearLinger}
+                    onLeave={() => {
+                      if (!pinned || pinned !== cardNode.id) hidePreviewSoon();
+                    }}
                     onClose={() => {
-                      setOpen(null);
-                      nodeEls.current.get(openNode.id)?.focus();
+                      closeCards();
+                      refocus(cardNode.id);
                     }}
                   />
                 ) : null
@@ -622,43 +735,75 @@ function MapField({ view }: { view: MapView }) {
 
 type FieldNodeProps = {
   node: MapViewNode;
-  isOpen: boolean;
+  hasCard: boolean;
+  isPinned: boolean;
+  /** Hovered, focused, or showing its card: gets the pen loop. */
+  marked: boolean;
   isActive: boolean;
   dim: boolean;
-  setRef: (el: HTMLButtonElement | null) => void;
-  /** Enter or Space. Pointer clicks are handled by the field (see onPointerUp). */
+  setRef: (el: HTMLElement | null) => void;
+  /** Enter (or Space on a button). Pointer clicks are handled by the field (see onPointerUp). */
   onKeyboardClick: () => void;
   onEnter: () => void;
   onLeave: () => void;
   onFocus: () => void;
   onBlur: () => void;
-  /** Rendered right after the button, so Tab goes from an open node into its panel. */
+  /** Rendered right after the node, so Tab goes from a node into its card. */
   panel: ReactNode;
 };
 
-function FieldNode({ node, isOpen, isActive, dim, setRef, onKeyboardClick, onEnter, onLeave, onFocus, onBlur, panel }: FieldNodeProps) {
-  const label = node.label;
-  // The pen loop only suits short labels; long ones get the highlighter alone.
-  const scribble = isOpen && label.length <= 28;
+function FieldNode({ node, hasCard, isPinned, marked, isActive, dim, setRef, onKeyboardClick, onEnter, onLeave, onFocus, onBlur, panel }: FieldNodeProps) {
+  // The pen loop is drawn around the whole node (label and kind), so it fits labels of any length or line count.
+  const inner = (
+    <>
+      <span className={m.nodeLabel}>{node.label}</span>
+      <span className={m.kind}>{KIND_LABEL[node.kind]}</span>
+      {marked && (
+        <svg className={m.loop} viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
+          <path d={PEN_LOOP} />
+        </svg>
+      )}
+    </>
+  );
+  const className = `${m.node} ${m[node.weight]} ${isActive ? m.nodeActive : ""} ${dim ? m.nodeDim : ""} ${node.planned ? m.nodePlanned : ""}`;
+  const events = { onPointerEnter: onEnter, onPointerLeave: onLeave, onFocus, onBlur };
+  // A piece with somewhere to go is a real link: Enter follows it, and the browser shows where it leads.
+  const isLink = node.kind !== "theme" && !!node.href && !node.planned;
   return (
     <>
-      <button
-        ref={setRef}
-        type="button"
-        data-node={node.id}
-        className={`${m.node} ${m[node.weight]} ${isActive ? m.nodeActive : ""} ${dim ? m.nodeDim : ""} ${node.planned ? m.nodePlanned : ""}`}
-        aria-pressed={isOpen}
-        onClick={(e) => {
-          if (e.detail === 0) onKeyboardClick();
-        }}
-        onPointerEnter={onEnter}
-        onPointerLeave={onLeave}
-        onFocus={onFocus}
-        onBlur={onBlur}
-      >
-        <span className={m.nodeLabel}>{scribble ? <Scribble>{label}</Scribble> : label}</span>
-        <span className={m.kind}>{KIND_LABEL[node.kind]}</span>
-      </button>
+      {isLink ? (
+        <a
+          ref={setRef}
+          href={node.href}
+          data-node={node.id}
+          className={className}
+          draggable={false}
+          aria-describedby={hasCard ? `map-panel-${node.id}` : undefined}
+          onClick={(e) => {
+            // Pointer clicks are handled by the field; Enter (detail 0) goes through the same path, so internal
+            // pages use client-side navigation and nothing ever navigates twice.
+            e.preventDefault();
+            if (e.detail === 0) onKeyboardClick();
+          }}
+          {...events}
+        >
+          {inner}
+        </a>
+      ) : (
+        <button
+          ref={setRef}
+          type="button"
+          data-node={node.id}
+          className={className}
+          aria-expanded={isPinned}
+          onClick={(e) => {
+            if (e.detail === 0) onKeyboardClick();
+          }}
+          {...events}
+        >
+          {inner}
+        </button>
+      )}
       {panel}
     </>
   );
@@ -667,27 +812,69 @@ function FieldNode({ node, isOpen, isActive, dim, setRef, onKeyboardClick, onEnt
 type PanelProps = {
   ref: Ref<HTMLDivElement>;
   node: MapViewNode;
+  factIndex: number;
+  onNextFact: () => void;
   neighbors: MapViewNode[];
   onWalk: (id: string) => void;
+  /** The pointer or focus arrived on the card: keep it open. */
+  onStay: () => void;
+  /** The pointer or focus left the card. */
+  onLeave: () => void;
   onClose: () => void;
 };
 
-/** The card for an open node: what it is, what it connects to, and one link that says what it does. */
-function Panel({ ref, node, neighbors, onWalk, onClose }: PanelProps) {
+/**
+ * The card beside a node. A piece's card says what it is, what it connects to, and where it leads. A theme's card
+ * shows one "Did you know?" fact with its Wikipedia source.
+ */
+function Panel({ ref, node, factIndex, onNextFact, neighbors, onWalk, onStay, onLeave, onClose }: PanelProps) {
   const titleId = `map-panel-${node.id}`;
+  const fact = node.facts?.[factIndex];
   return (
-    <div ref={ref} className={m.panel} role="dialog" aria-labelledby={titleId}>
+    <div
+      ref={ref}
+      className={m.panel}
+      role="dialog"
+      aria-labelledby={`${titleId}-title`}
+      id={titleId}
+      onPointerEnter={onStay}
+      onPointerLeave={onLeave}
+      onFocus={onStay}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onLeave();
+      }}
+    >
       <button type="button" className={m.close} aria-label="Close" onClick={onClose}>
         Close
       </button>
-      <h2 className={m.panelTitle} id={titleId}>
+      <h2 className={m.panelTitle} id={`${titleId}-title`}>
         {node.label}
       </h2>
       <p className={m.kind}>
         {KIND_LABEL[node.kind]}
         {node.placeholder && ". Placeholder"}
       </p>
-      <p className={m.panelSummary}>{node.summary}</p>
+      {fact ? (
+        <div className={m.fact}>
+          <p className={m.factLead}>Did you know?</p>
+          <p className={m.panelSummary} aria-live="polite">
+            {fact.text}
+          </p>
+          <p className={m.factSource}>
+            From Wikipedia: <a href={fact.url}>{fact.source}</a>
+            {(node.facts?.length ?? 0) > 1 && (
+              <>
+                {" "}
+                <button type="button" className={m.walk} onClick={onNextFact}>
+                  Another fact
+                </button>
+              </>
+            )}
+          </p>
+        </div>
+      ) : (
+        <p className={m.panelSummary}>{node.summary}</p>
+      )}
       {neighbors.length > 0 && (
         <div className={m.panelConnects}>
           <p className={m.connectsLabel}>Connects to</p>
@@ -702,15 +889,17 @@ function Panel({ ref, node, neighbors, onWalk, onClose }: PanelProps) {
           </ul>
         </div>
       )}
-      <p className={m.panelLink}>
-        {node.planned ? (
-          <span className={m.muted}>Not written yet.</span>
-        ) : node.href ? (
-          <EntryLink href={node.href}>{node.linkLabel ?? "Read it"}</EntryLink>
-        ) : (
-          node.linkLabel && <span className={m.muted}>{node.linkLabel}</span>
-        )}
-      </p>
+      {node.kind !== "theme" && (
+        <p className={m.panelLink}>
+          {node.planned ? (
+            <span className={m.muted}>Not written yet.</span>
+          ) : node.href ? (
+            <EntryLink href={node.href}>{node.linkLabel ?? "Read it"}</EntryLink>
+          ) : (
+            node.linkLabel && <span className={m.muted}>{node.linkLabel}</span>
+          )}
+        </p>
+      )}
     </div>
   );
 }

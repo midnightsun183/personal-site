@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Aside } from "./Note";
-import { isExternal, sourceLabel } from "@/lib/catalog";
+import { isExternal, sourceLabel } from "@/lib/sources";
 import { monthYear } from "@/lib/dates";
 import type { Entry } from "@/content/schema";
 import s from "./margins.module.css";
@@ -31,6 +31,7 @@ function MarginNote({ entry }: { entry: Entry }) {
         </>
       )}
       {entry.placeholder && <> Placeholder.</>}
+      {entry.draft && <> Draft, shown only in dev.</>}
     </Aside>
   );
 }
