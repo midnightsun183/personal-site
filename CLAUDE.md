@@ -50,10 +50,12 @@ The full plan and its reasoning are in `TODO.md` ("The plan: a hub, not a blog")
       ▼                                                          ├──▶ /about       story plus where I'm going
   lib/notes.ts ──▶ lib/catalog.ts (query functions) ─────────────┤
   (parse, check,     server-only, memoized in production         └──▶ /contact     form ──▶ Pages Function ──▶ mail API
-   fail the build)
+   fail the build)        │
+                          └─ mapData() ─▶ lib/mapView.ts (pure) ─▶ HomeMap ─┬─▶ MapList (server render, phones, no JS)
+                                                                            └─▶ MapGraph (Pixi, wide screens, on demand)
 ```
 
-- **Pages read only from the catalog's query functions** (`writing`, `work`, `featuredWork`, `bySlug`, `hosted`, `pageBody`, `hrefFor`, `mapData`), never from notes directly. Client components import types from `lib/catalog.ts` and link helpers from `lib/sources.ts`, never catalog values (it reads the disk and is `server-only`).
+- **Pages read only from the catalog's query functions** (`writing`, `work`, `featuredWork`, `bySlug`, `hosted`, `pageBody`, `hrefFor`, `mapData`), never from notes directly. Client components import types from `lib/catalog.ts` or `lib/mapView.ts` and link helpers from `lib/sources.ts`, never catalog values (it reads the disk and is `server-only`).
 - **Notes are the only content source.** A body with no `url` is a page here; a `url` with no body is a link out (Substack, Medium, GitHub); neither is a map-only piece. The format is `docs/design/obsidian-content-pipeline-spec.md` (decisions at the top). A bad note fails the build with its path, so the last deploy stays live.
 - **Bodies render through `NoteBody`** from a checked allowlist of Markdown. No raw HTML, no images yet, no `dangerouslySetInnerHTML`. Interactive graphics are ```` ```graphic ```` blocks registered in `src/content/graphics.ts` (one line per graphic).
 - **The site never fetches at runtime.**
@@ -66,6 +68,7 @@ The full plan and its reasoning are in `TODO.md` ("The plan: a hub, not a blog")
 - `cacheComponents` and `partialPrefetching` are off: they do nothing for plain files and block `dynamicParams = false`.
 - **Read `node_modules/next/dist/docs/` before writing Next code.** This version differs from older training data (see AGENTS.md).
 - Notes: `unified` + `remark-parse` + `remark-gfm` (parsing only; rendering is our own `NoteBody`), `yaml` (1.2 core schema, so dates stay strings), zod for frontmatter.
+- Home map: `pixi.js` (WebGL drawing, bundled and loaded only on wide screens), `d3-force`, `d3-zoom`, `d3-drag`, `d3-selection`. The graph is adapted from Quartz's graph view (quartz-community/graph, MIT); the credit and notice are in `MapGraph.tsx`.
 - Commands: `npm run dev`, `npm run build` (runs the tests first, via `prebuild`), `npm test` (Vitest), `npm run lint`. Don't set `NODE_ENV=production` in Cloudflare's build settings, or devDependencies (Vitest) won't install and every build fails.
 
 ## Layout
@@ -75,7 +78,7 @@ The full plan and its reasoning are in `TODO.md` ("The plan: a hub, not a blog")
 - `notes/`: all content, opened as an Obsidian vault. `themes/` holds one note per theme (its body is a list of cited "Did you know?" facts); every other note is a piece, and subfolders are only for organizing. `_templates/` and `_README.md` (the confidentiality rules) are skipped by the build, as is anything starting with `_` or `.`. High-level only: no figures, client names, the school's name, or the forecasting system.
 - `src/content/`: `schema.ts` (zod frontmatter schemas and the `Entry` type), `graphics.ts` (the graphic registry), `text.ts` (slugify).
 - `src/lib/notes.ts`: reads and checks the vault. `src/lib/catalog.ts`: the query functions every page uses. `src/lib/sources.ts`: link helpers safe for client components. `src/lib/contact.ts`: form rules shared by the form and the Function. `src/lib/dates.ts`: date labels.
-- The home map: `src/components/margins/HomeMap.tsx` renders `mapData()`; the design is `docs/design/home-map.md`. Build with `NEXT_PUBLIC_MAP_PREVIEW=1` to see planned nodes; never set it in production.
+- The home map: `src/lib/mapView.ts` shapes it (nodes, edges from themes, `connects` and body wikilinks). `src/components/margins/HomeMap.tsx` picks the list or the graph and holds `MapList`; `MapGraph.tsx` draws the graph with Pixi; `graph.ts` holds its pure rules (sizes, hit testing, click vs drag, the card timer, the mode), all tested. The design is `docs/design/home-map.md` and `docs/design/home-graph-plan.md`. Build with `NEXT_PUBLIC_MAP_PREVIEW=1` to see planned nodes; never set it in production.
 - `test/`: Vitest. `fixtures/notes/` is a sample vault with one note per branch; broken notes are written inline in `notes.test.ts`.
 - `functions/api/contact.ts`: the Cloudflare Pages Function behind the form.
 - `.github/dependabot.yml`: monthly update PRs.
@@ -91,3 +94,5 @@ The full plan and its reasoning are in `TODO.md` ("The plan: a hub, not a blog")
 - To preview the export locally, serve `out/` so `/about` maps to `about.html` (Cloudflare does this). A plain static server shows a folder listing instead, because `out/about/` also exists.
 - Without `NEXT_PUBLIC_TURNSTILE_SITE_KEY` at build time, the form says sending is off. The Function only exists on Cloudflare, so locally the form can't send.
 - Theme: an inline script in the root layout applies the saved theme before first paint, and `ThemeToggle` re-applies it after React's dev remount. Its label comes from CSS (`.to-dark` / `.to-light`), so it's right before hydration.
+- The same inline script sets `<html data-js>` and, after 4 s, marks a still-loading home map as failed. `map.module.css` reads `data-js` and `data-map` to hide the list and hold the graph's space while Pixi loads. A future CSP needs this script's hash, and any change to it changes the hash.
+- Pixi can't be unit-tested (no WebGL in Vitest). Check the graph on the export (see "To preview the export locally") in both themes, with reduced motion, and at 360 px. In headless Chromium, `GPU stall due to ReadPixels` warnings are harmless.

@@ -13,6 +13,7 @@
 //           wikilinks become `wikiLink` nodes, footnotes get numbers, [!quote] is marked,
 //           ```graphic blocks become `graphic` nodes with checked props
 //                          │
+//                          ├─ body wikilink ids ─▶ `links` (map edges, with `connects`)
 //                          ▼
 //   Vault { themes (with facts), pieces (with an Entry when they have a body or a url) }
 import fs from "node:fs";
@@ -101,6 +102,8 @@ export type PieceNote = {
   themes: string[];
   /** Map node ids (a piece's id, or themeNodeId for a theme), from `connects`. */
   connects: string[];
+  /** Map node ids of the wikilinks in the body, once each, in order. May include the note itself. */
+  links: string[];
   url?: string;
   linkLabel?: string;
   placeholder: boolean;
@@ -387,6 +390,17 @@ function prepareBody(file: string, tree: Root, resolve: (name: string) => string
   return prepared;
 }
 
+/** Ids of every wikilink in a prepared body (footnotes included), once each. */
+function wikiLinksIn(tree: Root): string[] {
+  const ids = new Set<string>();
+  const walk = (node: Node) => {
+    if (node.type === "wikiLink") ids.add((node as WikiLink).id);
+    if ("children" in node) for (const child of node.children as Node[]) walk(child);
+  };
+  walk(tree);
+  return [...ids];
+}
+
 // ---------- Entries ----------
 
 function sourceOf(url: string): Source {
@@ -511,6 +525,7 @@ export function loadVault(root: string, today = new Date().toISOString().slice(0
     if (connects.includes(id)) fail(p.file, "connects links the note to itself");
 
     const title = fm.title ?? p.name;
+    const body = tree && prepareBody(p.file, tree, resolve);
     const entry = toEntry(id, title, fm, tree !== undefined, today);
     if (entry && fm.url) {
       const other = urls.get(fm.url);
@@ -528,10 +543,11 @@ export function loadVault(root: string, today = new Date().toISOString().slice(0
       weight: fm.weight,
       themes: [...new Set(themeLinks)],
       connects: [...new Set(connects)],
+      links: body ? wikiLinksIn(body) : [],
       url: fm.url,
       linkLabel: fm["link-label"],
       placeholder: fm.placeholder,
-      body: tree && prepareBody(p.file, tree, resolve),
+      body,
       entry,
     };
   });

@@ -12,8 +12,12 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "d3-drag": "3.0.0",
     "d3-force": "3.0.0",
+    "d3-selection": "3.0.0",
+    "d3-zoom": "3.0.0",
     "next": "16.4.2",
+    "pixi.js": "8.22.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "remark-gfm": "4.0.1",
@@ -24,7 +28,10 @@
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
+    "@types/d3-drag": "3.0.7",
     "@types/d3-force": "3.0.10",
+    "@types/d3-selection": "3.0.12",
+    "@types/d3-zoom": "3.0.9",
     "@types/mdast": "4.0.4",
     "@types/node": "^20",
     "@types/react": "^19",

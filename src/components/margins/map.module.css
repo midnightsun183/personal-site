@@ -1,8 +1,31 @@
 /*
-  The home page map (docs/design/home-map.md). Colors come from the Margins tokens in globals.css.
-  Dimmed nodes switch to --pencil instead of fading, so their labels keep AA contrast (5.6:1 light, 7.1:1 dark).
-  Threads are decorative (aria-hidden) and may fade.
+  The home page map (docs/design/home-map.md, home-graph-plan.md). Colors come from the Margins tokens in globals.css;
+  the graph itself is drawn by MapGraph (Pixi), which reads the same tokens.
+
+  .map is display: contents, so its parts sit in the page grid: the toggle and list in the text column, the graph
+  edge to edge. What shows on wide screens follows <html data-js> and <html data-map> (set by layout.tsx's inline
+  script and HomeMap):
+    no JS                      list
+    data-js, loading           graph's height reserved, list hidden, toggle space held
+    data-map="graph"           graph, "View as a list"
+    data-map="list"            list, "View as a graph"
+    data-map="failed"          list, no toggle
+  Under 720px it's always the list.
 */
+
+.map { display: contents; }
+.viewToggle, .list { grid-column: text; }
+.stage { grid-column: full; display: none; }
+.viewToggle { display: none; margin: 3rem 0 0; font-size: .9375rem; }
+
+@media (min-width: 720px) {
+  :root[data-js] .viewToggle { display: block; visibility: hidden; }
+  :root[data-map="graph"] .viewToggle, :root[data-map="list"] .viewToggle { visibility: visible; }
+  :root[data-js]:not([data-map]) .stage, :root[data-map="loading"] .stage, :root[data-map="graph"] .stage {
+    display: block; height: min(78vh, var(--graph-h, 760px));
+  }
+  :root[data-js]:not([data-map]) .list, :root[data-map="loading"] .list, :root[data-map="graph"] .list { display: none; }
+}
 
 /* ---------- List: server render, phones, no JS ---------- */
 .list { margin: 2.5rem 0 0; }
@@ -19,59 +42,9 @@
 
 .kind { display: block; margin: .1rem 0 0; font-size: .8125rem; font-style: italic; color: var(--pencil); line-height: 1.3; }
 
-/* ---------- Field ---------- */
-.field {
-  position: relative; height: min(78vh, var(--map-h, 760px)); margin: 3rem 0 0; overflow: hidden;
-  touch-action: none; user-select: none; -webkit-user-select: none;
-}
-.isDragging, .isDragging .node { cursor: grabbing; }
-.world { position: absolute; inset: 0; }
-
-
-.threads { position: absolute; top: 0; left: 0; overflow: visible; }
-.thread {
-  stroke: var(--rule); stroke-width: 1; stroke-linecap: round;
-  transition: stroke .3s cubic-bezier(.23, 1, .32, 1), opacity .3s cubic-bezier(.23, 1, .32, 1), stroke-width .3s;
-  animation: draw 700ms cubic-bezier(.23, 1, .32, 1) backwards;
-}
-.threadOn { stroke: var(--pen); stroke-width: 1.75; stroke-dasharray: .03 .04; animation: flow 1.6s linear infinite; }
-.flowBack { animation-direction: reverse; }
-.threadDim { opacity: .25; }
-
-@keyframes draw {
-  from { stroke-dasharray: 1; stroke-dashoffset: 1; }
-  to { stroke-dasharray: 1; stroke-dashoffset: 0; }
-}
-@keyframes flow {
-  to { stroke-dashoffset: -.07; }
-}
-
-.node {
-  position: absolute; top: 0; left: 0; z-index: var(--z-map-node); will-change: transform;
-  display: flex; flex-direction: column; align-items: center; max-width: 15em; padding: .3rem .55rem;
-  font: inherit; text-align: center; line-height: 1.25; color: var(--ink);
-  background: var(--paper); border: 0; border-radius: 4px; cursor: grab;
-  transition: color .3s cubic-bezier(.23, 1, .32, 1);
-}
-.nodeLabel { padding: 0 .1em; }
-/* The pen loop on a hovered, focused or open node. Drawn over the label's paper so it reads as ink on top. */
-.loop {
-  position: absolute; left: -9%; top: -20%; width: 118%; height: 140%; overflow: visible; pointer-events: none;
-}
-.loop path { fill: none; stroke: var(--pen); stroke-width: 1.6; stroke-linecap: round; vector-effect: non-scaling-stroke; }
-.heavy .nodeLabel { font-size: 1.3125rem; font-weight: 500; }
-.normal .nodeLabel { font-size: 1rem; }
-.light .nodeLabel { font-size: .875rem; color: var(--pencil); }
-.light .kind { display: none; }
-/* Themes read as the web's centers: larger, italic (the margin's voice), no kind line. */
-.theme .nodeLabel { font-size: 1.375rem; font-style: italic; font-weight: 400; color: var(--pen); }
-.theme .kind { display: none; }
-.nodeActive .nodeLabel {
-  color: var(--pen);
-  background: linear-gradient(transparent 52%, var(--hi) 52%, var(--hi) 92%, transparent 92%);
-}
-.nodeDim, .nodeDim .nodeLabel { color: var(--pencil); }
-.nodePlanned .nodeLabel { text-decoration: underline dotted var(--pencil); text-underline-offset: .2em; }
+/* ---------- Graph ---------- */
+.graph { position: relative; height: 100%; overflow: hidden; }
+.canvas { display: block; touch-action: none; user-select: none; -webkit-user-select: none; }
 
 /* ---------- Panel ---------- */
 .panel {
@@ -99,11 +72,4 @@
 .fact { margin-top: .5rem; }
 .factLead { margin: 0; font-style: italic; color: var(--pen); }
 .factSource { margin: .5rem 0 0; font-size: .875rem; color: var(--pencil); }
-a.node { text-decoration: none; }
 .muted { color: var(--pencil); font-style: italic; }
-
-@media (prefers-reduced-motion: reduce) {
-  .thread, .threadOn { animation: none; transition: none; }
-  .threadOn { stroke-dasharray: none; }
-  .node { transition: none; }
-}

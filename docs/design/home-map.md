@@ -58,6 +58,19 @@ Sections below that describe regions, anchors and the region list are superseded
 
 The field, its interactions, and the list version are unchanged. The graph-view rebuild is PR2 (see `TODO.md`). The "Data" section below is superseded by this one.
 
+## Revision: an Obsidian graph view (October 19, 2026)
+
+PR2 replaced the field with a graph drawn by PixiJS, adapted from Quartz's graph view. The plan and its eng-review decisions are `docs/design/home-graph-plan.md`; the look and behavior are the spec's "Home map" section (`obsidian-content-pipeline-spec.md`). In short:
+
+- **Dots and straight lines** on the plain page. Dot size is `2 + sqrt(links)`, plus a bonus for `weight: heavy`. Planned pieces (preview builds) are hollow. Every dot is labeled; labels fade only when zoomed out.
+- **Edges** come from `themes`, `connects` and wikilinks in note bodies, once each, undirected.
+- **Hover** highlights a dot, its neighbors and its links in `--pen`, fading the rest. After 1.5 s the card appears beside the dot (theme cards show "Did you know?" facts). **Click** opens the piece; themes do nothing. **Drag** a dot and its neighbors follow; drag the background to pan; wheel or pinch to zoom. On touch, the first tap shows the card and the second opens.
+- **No drift.** The graph settles and stops; nothing draws while it's idle.
+- **Keyboard and screen readers** get the list: the canvas is `aria-hidden`, and a "View as a list" button before it swaps the list in. Walking the graph by keyboard is a TODO.
+- **Loading:** on wide screens with JS, the list stays hidden and the graph's height is held until Pixi draws, so nothing jumps. If Pixi can't start (no WebGL, lost context) or hasn't drawn within 4 s, the list shows.
+
+The "Layout and look", "Interaction" and "Implementation" sections below describe the old field and are superseded by this one.
+
 ## What the map is not
 
 - Not a skills cloud. Platforms (Snowflake, ServiceNow, Python…) are never nodes. They can appear inside a node's panel as "built with" if Corey wants, nowhere else.

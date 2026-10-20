@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import s from "./margins.module.css";
 
 /** The pen loop's path, in a 100 x 30 box stretched to fit whatever it circles. */
-export const PEN_LOOP = "M4 18 C 20 2, 80 0, 97 12 C 104 20, 70 30, 40 28 C 14 26, 0 22, 9 10";
+const PEN_LOOP = "M4 18 C 20 2, 80 0, 97 12 C 104 20, 70 30, 40 28 C 14 26, 0 22, 9 10";
 
 /** A pen loop drawn around a phrase. */
 export function Scribble({ children }: { children: ReactNode }) {

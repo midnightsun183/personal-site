@@ -18,8 +18,10 @@ export const metadata: Metadata = {
   description: "Essays, notes, and the occasional chart.",
 };
 
-// Applies a saved theme before first paint. With nothing saved, the CSS follows the system.
-const themeScript = `(function(){try{var t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}})()`;
+// Before first paint: applies a saved theme (with nothing saved, the CSS follows the system), and sets data-js so the
+// home map can hold the graph's space instead of flashing its list (map.module.css). If the map is still loading 4 s
+// later (JS that never ran, or a Pixi download that hung), it marks the map failed, which shows the list.
+const themeScript = `(function(){var d=document.documentElement;d.setAttribute("data-js","");try{var t=localStorage.getItem("theme");if(t==="light"||t==="dark")d.setAttribute("data-theme",t)}catch(e){}setTimeout(function(){var m=d.getAttribute("data-map");if((!m||m==="loading")&&document.querySelector("[data-home-map]"))d.setAttribute("data-map","failed")},4000)})()`;
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

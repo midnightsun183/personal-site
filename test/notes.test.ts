@@ -86,6 +86,12 @@ describe("the good vault", () => {
     expect(piece("planned-piece").connects).toEqual(["hosted-essay"]);
   });
 
+  it("collects body wikilinks once each, footnotes included, for map edges", () => {
+    expect(piece("hosted-essay").links).toEqual(["link-out", "planned-piece", "theme-places"]);
+    expect(piece("book-page").links).toEqual(["book-page", "venture", "on-github"]);
+    expect(piece("link-out").links).toEqual([]);
+  });
+
   it("turns a body with no url into a page here, sectioned by kind", () => {
     expect(piece("hosted-essay").entry).toMatchObject({
       id: "hosted-essay",

@@ -15,7 +15,6 @@
   --wash: #E9ECE6;
   --error: #B3261E;
   --gap: clamp(1.25rem, 3vw, 3.5rem);
-  --z-map-node: 1;
   --z-map-panel: 2;
   --z-skip: 10;
   color-scheme: light;

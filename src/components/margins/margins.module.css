@@ -19,8 +19,6 @@
 }
 .page > * { grid-column: text; }
 .page > .page { grid-column: full; }
-/* The home map's field runs edge to edge; its list version stays in the text column. */
-.page > .fullBleed { grid-column: full; }
 .gutter { grid-column: gutter; text-align: right; color: var(--pencil); font-size: .9375rem; line-height: 1.5; margin: 0; }
 .note {
   grid-column: notes; align-self: start; margin: .3rem 0 0;

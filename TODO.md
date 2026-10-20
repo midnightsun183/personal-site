@@ -60,11 +60,12 @@ Waiting on Corey:
 - [ ] The line above the map (placeholder in `src/app/page.tsx`)
 - [ ] Check the theme names and which themes each piece touches (the notes in `notes/`, a first pass from the doc's regions and connection notes), and rewrite every summary (all placeholders), plus Second Lengua's URL
 - [ ] Pick which planned pieces to write first (`notes/map/`, `status: planned`). Today the map has 5 pieces in 4 small webs.
-- [ ] ~~Look at a preview build and say whether the drift stays~~ The graph view (PR2) removes `DRIFT`.
+- [x] ~~Look at a preview build and say whether the drift stays~~ PR2 removed the drift: the graph settles and stops.
+- [ ] Look at the graph next to your Obsidian screenshots (`npm run dev`, or a preview build) and say what to tune: the force constants are named at the top of `MapGraph.tsx`, dot sizes and label fade in `graph.ts`
 - [ ] Read the theme facts in `notes/themes/` (two or three per theme, each cited) and swap any that don't fit
 
 Not done (nice-to-have in the doc):
-- [ ] Arrow keys to move focus to the nearest connected node in that direction
+- [ ] Arrow keys to move focus to the nearest connected node in that direction (now part of "Keyboard walking of the graph" below)
 
 ## Notes pipeline (docs/design/obsidian-content-pipeline-spec.md)
 
@@ -81,11 +82,21 @@ PR1, built October 18, 2026:
 - [ ] **Photo slot** dropped from "Same latitude, different ocean" ("harbor at golden hour", caption in the margin) until notes support images
 - [ ] Open question from the spec: `notes/` as its own vault, or a junction inside the main vault? Only changes which README option you use; both are documented.
 
-- [ ] **PR2: plan and review the graph view** (P2, M). Write a short plan, then run an eng review on it, after PR1 lands. Findings so far: Quartz's `graph.inline.ts` (quartz-community/graph, MIT) is an 808-line `@ts-nocheck` IIFE. It loads full d3@7 and pixi.js@8 from jsDelivr at runtime and keeps a localStorage "visited" set. A port needs `d3-zoom`, `d3-drag`, `d3-selection` and `pixi.js` as bundled deps (roughly 200 KB gzip on the home page). Pixi is built for thousands of nodes and we have about 20, so weigh Canvas 2D first (d3-force plus d3-zoom and d3-drag, site fonts and tokens without extra work, no WebGL context loss). Also in scope: body wikilinks as edges, removing `MapField` and `DRIFT`, the map CSS cleanup, and the phase 2 hover card (recover it from the commit holding the staged hover and fact-card work).
+- [x] **PR2: the graph view**, built October 19, 2026 from `docs/design/home-graph-plan.md` (decisions at the top):
+  - Pixi graph in `MapGraph.tsx` (adapted from Quartz, MIT credit in the header), pure rules in `graph.ts`, map shaping moved to a pure `src/lib/mapView.ts`
+  - Body wikilinks are map edges (footnotes included), deduped with `themes` and `connects`; nodes carry `degree`
+  - Hover highlight, card after 1.5 s (theme facts kept), click to open, drag, pan, zoom, two-tap on touch, Esc
+  - "View as a list" swap for keyboard and screen-reader users; list fallback when WebGL fails; graph space held while Pixi loads, with a 4 s safety net in the inline script
+  - `MapField`, drift, rectangle collision, the pen loop on nodes, `--z-map-node` and the field CSS removed
+  - Tests: 117 (was 76): `graph.test.ts`, `mapData.test.ts`, `MapList.test.tsx`, plus body-link cases in `notes.test.ts`
+  - Checked on the export: both themes, hover and card, Esc, click (client navigation), drag, wheel zoom, list swap and back, WebGL off, reduced motion, the loading state, 360 px, and the preview build (28 nodes)
+- [ ] **Wheel over the graph zooms instead of scrolling the page** (P3, S). Same as Obsidian and Quartz, and what the spec asks for, but on a full-width home-page map a reader scrolling past can get caught. If it bothers you: zoom only with Ctrl/Cmd + wheel (d3-zoom `filter`) and show a hint on plain wheel.
+- [ ] **Labels overlap in dense spots** (P3, S). Every dot is labeled (decision 4C), and in the preview build a few long labels touch ("Learning Spanish as an adult" and "Obsidian vault skills"). The spec allows overlap; if it reads badly, raise `COLLIDE_PAD` or `LINK_DISTANCE` in `MapGraph.tsx`.
+- [ ] **Keyboard walking of the graph** (P3, M). PR2 makes the canvas `aria-hidden` and gives keyboard users a "View as a list" swap, a step back from the old map, which Tab could walk. Add invisible focusable buttons that sit over each dot and follow drag and zoom, so Tab and arrow keys move through the graph and focus opens the card. Feed focus into the same pure hover and card rules in `graph.ts`. Covers the arrow-key item under Home map. Depends on PR2.
 - [ ] **Redirects for renamed slugs** (P3, S). An optional `old-slugs: [...]` note property that writes `public/_redirects` lines (301 from each old path to the current one) at build, and fails if an old slug matches a live one. `slug` is required on published pages, so accidental URL changes already fail; this covers deliberate renames. Cloudflare Pages reads `_redirects` from the output root, and static export copies `public/` into `out/`. Build it the first time a slug actually changes.
 
 ## Deferred
-- [ ] **More tests** (P2, M). The notes pipeline has Vitest coverage. Still untested: the contact function, the map's `mapData()` shaping, and a smoke check per route.
+- [ ] **More tests** (P2, M). The notes pipeline and (after PR2) `mapData()` and the map's interaction rules have Vitest coverage. Still untested: the contact function, and a browser smoke check. For the smoke check, a Playwright script against `out/` (served with the .html fallback, like `scratchpad/serve.py`): every route loads; on the home page the canvas draws on a wide screen, the list shows at 360 px, the list/graph swap works, the list returns with WebGL off, and the reserved space never stays blank; both themes. Vitest can't see Pixi, the reserved-space CSS or the fallback, so a regression there would leave a blank map. Costs Playwright and a browser download in dev setup.
 - [ ] **Analytics** (P3, S): Cloudflare Web Analytics. Free, cookieless, no consent banner.
 - [ ] **RSS out** (P2, S): one `/feed.xml` built from the catalog that merges every source.
 - [ ] **Share images** (P2, M): an Open Graph image per page in the Margins style, made by a build script (dynamic image routes don't work in a static export).

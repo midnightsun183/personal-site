@@ -1,6 +1,6 @@
 # Spec: Obsidian notes as the source for map nodes and hosted pages
 
-Status: PR1 (notes pipeline, feed sync removed) built October 18, 2026; PR2 (graph view) not started. Replaces the earlier draft of this file. Read `CLAUDE.md` and `docs/design/home-map.md` first; everything there still applies unless this doc says otherwise. This changes two things: **where content is written** (Obsidian notes instead of TypeScript), and **how the home map renders** (an Obsidian graph view, ported from Quartz, instead of the current custom field). See "Home map".
+Status: PR1 (notes pipeline, feed sync removed) built October 18, 2026; PR2 (graph view) built October 19, 2026, from `docs/design/home-graph-plan.md`, whose decisions override this file's "Home map" section where they differ. Replaces the earlier draft of this file. Read `CLAUDE.md` and `docs/design/home-map.md` first; everything there still applies unless this doc says otherwise. This changes two things: **where content is written** (Obsidian notes instead of TypeScript), and **how the home map renders** (an Obsidian graph view, ported from Quartz, instead of the current custom field). See "Home map".
 
 ## Eng review decisions (October 18, 2026)
 
